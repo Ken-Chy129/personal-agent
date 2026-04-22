@@ -57,14 +57,32 @@ func (r *REPL) Run(ctx context.Context) error {
 
 		events := r.agent.Run(ctx, r.history)
 		var lastAssistantContent string
+		streaming := false
 
 		for ev := range events {
 			switch ev.Type {
+			case agent.EventTextDelta:
+				if !streaming {
+					fmt.Println()
+					streaming = true
+				}
+				fmt.Print(ev.Content)
+
 			case agent.EventAssistantMessage:
-				fmt.Printf("\n%s\n", ev.Content)
 				lastAssistantContent = ev.Content
+				if !streaming {
+					// Only print if we didn't already stream it
+					fmt.Printf("\n%s\n", ev.Content)
+				} else {
+					fmt.Println() // newline after streamed text
+					streaming = false
+				}
 
 			case agent.EventToolUseStart:
+				if streaming {
+					fmt.Println()
+					streaming = false
+				}
 				fmt.Printf("\n  [Tool: %s] %s\n", ev.ToolName, truncate(ev.ToolInput, 200))
 
 			case agent.EventToolUseResult:
@@ -77,9 +95,17 @@ func (r *REPL) Run(ctx context.Context) error {
 				}
 
 			case agent.EventError:
+				if streaming {
+					fmt.Println()
+					streaming = false
+				}
 				fmt.Printf("\n  Error: %s\n", ev.Content)
 
 			case agent.EventDone:
+				if streaming {
+					fmt.Println()
+					streaming = false
+				}
 				if ev.TotalUsage.InputTokens > 0 || ev.TotalUsage.OutputTokens > 0 {
 					fmt.Printf("\n  [tokens: in=%d out=%d]\n", ev.TotalUsage.InputTokens, ev.TotalUsage.OutputTokens)
 				}

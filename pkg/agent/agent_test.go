@@ -27,6 +27,22 @@ func (m *mockProvider) Chat(_ context.Context, _ *provider.ChatRequest) (*provid
 	return resp, nil
 }
 
+func (m *mockProvider) Stream(ctx context.Context, req *provider.ChatRequest) (<-chan provider.StreamEvent, error) {
+	resp, err := m.Chat(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	ch := make(chan provider.StreamEvent, 2)
+	go func() {
+		defer close(ch)
+		if resp.Content != "" {
+			ch <- provider.StreamEvent{Type: "text_delta", TextDelta: resp.Content}
+		}
+		ch <- provider.StreamEvent{Type: "done", Response: resp}
+	}()
+	return ch, nil
+}
+
 // mockTool is a simple tool for testing.
 type mockTool struct {
 	name            string

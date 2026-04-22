@@ -66,6 +66,67 @@ func NewProvider(apiKey string, opts ...Option) *Provider {
 
 func (p *Provider) Name() string { return "openai" }
 
+func (p *Provider) Stream(ctx context.Context, req *provider.ChatRequest) (<-chan provider.StreamEvent, error) {
+	model := p.model
+	if req.Model != "" {
+		model = req.Model
+	}
+
+	msgs := convertMessagesToOpenAI(req.Messages, req.SystemPrompt)
+	tools := convertToolsToOpenAI(req.Tools)
+
+	params := oai.ChatCompletionNewParams{
+		Model:    shared.ChatModel(model),
+		Messages: msgs,
+	}
+	if len(tools) > 0 {
+		params.Tools = tools
+	}
+	if req.MaxTokens > 0 {
+		params.MaxCompletionTokens = oai.Int(int64(req.MaxTokens))
+	}
+
+	stream := p.client.Chat.Completions.NewStreaming(ctx, params)
+
+	ch := make(chan provider.StreamEvent, 32)
+	go func() {
+		defer close(ch)
+		acc := oai.ChatCompletionAccumulator{}
+
+		for stream.Next() {
+			chunk := stream.Current()
+			acc.AddChunk(chunk)
+
+			// Emit text deltas
+			if len(chunk.Choices) > 0 {
+				delta := chunk.Choices[0].Delta
+				if delta.Content != "" {
+					ch <- provider.StreamEvent{
+						Type:      "text_delta",
+						TextDelta: delta.Content,
+					}
+				}
+			}
+		}
+
+		if err := stream.Err(); err != nil {
+			ch <- provider.StreamEvent{Type: "error", Error: err}
+			return
+		}
+
+		// Build final response from accumulated result
+		resp := convertResponseFromOpenAI(&oai.ChatCompletion{
+			Choices: []oai.ChatCompletionChoice{acc.Choices[0]},
+			Usage:   acc.Usage,
+			Model:   acc.Model,
+		}, model)
+
+		ch <- provider.StreamEvent{Type: "done", Response: resp}
+	}()
+
+	return ch, nil
+}
+
 func (p *Provider) Chat(ctx context.Context, req *provider.ChatRequest) (*provider.ChatResponse, error) {
 	model := p.model
 	if req.Model != "" {

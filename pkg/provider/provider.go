@@ -9,7 +9,22 @@ import (
 // Provider is the abstraction for LLM API calls.
 type Provider interface {
 	Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error)
+	Stream(ctx context.Context, req *ChatRequest) (<-chan StreamEvent, error)
 	Name() string
+}
+
+// StreamEvent represents a single event from a streaming LLM response.
+type StreamEvent struct {
+	Type string // "text_delta", "tool_call_delta", "done", "error"
+
+	// For text_delta: the incremental text
+	TextDelta string
+
+	// For done: the final accumulated response
+	Response *ChatResponse
+
+	// For error
+	Error error
 }
 
 // ChatRequest represents a request to the LLM.

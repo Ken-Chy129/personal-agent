@@ -21,7 +21,8 @@ type Config struct {
 type EventType string
 
 const (
-	EventAssistantMessage EventType = "assistant_message"
+	EventTextDelta        EventType = "text_delta"        // incremental text chunk
+	EventAssistantMessage EventType = "assistant_message" // full assistant text (after streaming completes)
 	EventToolUseStart     EventType = "tool_use_start"
 	EventToolUseResult    EventType = "tool_use_result"
 	EventError            EventType = "error"
@@ -106,9 +107,29 @@ func (a *Agent) run(ctx context.Context, messages []message.Message, ch chan<- A
 			SystemPrompt: a.config.SystemPrompt,
 		}
 
-		resp, err := a.provider.Chat(ctx, req)
+		// Stream the response, emitting text deltas as they arrive
+		streamCh, err := a.provider.Stream(ctx, req)
 		if err != nil {
 			ch <- AgentEvent{Type: EventError, Error: err, Content: err.Error()}
+			ch <- AgentEvent{Type: EventDone, TotalUsage: totalUsage}
+			return
+		}
+
+		var resp *provider.ChatResponse
+		for ev := range streamCh {
+			switch ev.Type {
+			case "text_delta":
+				ch <- AgentEvent{Type: EventTextDelta, Content: ev.TextDelta}
+			case "error":
+				ch <- AgentEvent{Type: EventError, Error: ev.Error, Content: ev.Error.Error()}
+				ch <- AgentEvent{Type: EventDone, TotalUsage: totalUsage}
+				return
+			case "done":
+				resp = ev.Response
+			}
+		}
+		if resp == nil {
+			ch <- AgentEvent{Type: EventError, Error: fmt.Errorf("stream ended without response"), Content: "stream ended without response"}
 			ch <- AgentEvent{Type: EventDone, TotalUsage: totalUsage}
 			return
 		}
@@ -118,7 +139,7 @@ func (a *Agent) run(ctx context.Context, messages []message.Message, ch chan<- A
 		totalUsage.OutputTokens += resp.Usage.OutputTokens
 		totalUsage.Model = resp.Usage.Model
 
-		// Emit assistant text if present
+		// Emit full assistant message (for history tracking)
 		if resp.Content != "" {
 			ch <- AgentEvent{Type: EventAssistantMessage, Content: resp.Content}
 		}
