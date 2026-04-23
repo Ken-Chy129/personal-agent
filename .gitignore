@@ -1,0 +1,17 @@
+# IDE
+.idea/
+*.iml
+
+# Go
+/vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Env
+.env
+.env.local

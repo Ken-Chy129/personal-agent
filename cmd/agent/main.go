@@ -16,6 +16,7 @@ const defaultSystemPrompt = `You are a helpful coding assistant with access to t
 Use the file_write tool to create or modify files.
 Use the bash tool to run shell commands.
 Use the file_read tool to read file contents.
+Use the image_generate tool to generate images from text prompts.
 After creating files, verify your work by running them when appropriate.
 Be concise in your responses.`
 
@@ -34,6 +35,7 @@ func main() {
 		tools.NewBash(),
 		tools.NewFileWrite(),
 		tools.NewFileRead(),
+		tools.NewImageGenerate(apiKey),
 	}
 
 	cfg := &agent.Config{
