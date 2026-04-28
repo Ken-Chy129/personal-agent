@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/joho/godotenv"
+
 	"github.com/Ken-Chy129/personal-agent/internal/cli"
 	"github.com/Ken-Chy129/personal-agent/internal/tools"
 	"github.com/Ken-Chy129/personal-agent/pkg/agent"
@@ -21,21 +23,28 @@ After creating files, verify your work by running them when appropriate.
 Be concise in your responses.`
 
 func main() {
+	_ = godotenv.Load()
+
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
-		fmt.Fprintln(os.Stderr, "Error: OPENAI_API_KEY environment variable is not set")
+		fmt.Fprintln(os.Stderr, "Error: OPENAI_API_KEY is not set (set in .env or environment)")
 		os.Exit(1)
 	}
-
+	baseURL := os.Getenv("OPENAI_BASE_URL")
 	model := getEnvOr("AGENT_MODEL", "gpt-4o")
 
-	p := oaiprovider.NewProvider(apiKey, oaiprovider.WithModel(model))
+	var providerOpts []oaiprovider.Option
+	providerOpts = append(providerOpts, oaiprovider.WithModel(model))
+	if baseURL != "" {
+		providerOpts = append(providerOpts, oaiprovider.WithBaseURL(baseURL))
+	}
+	p := oaiprovider.NewProvider(apiKey, providerOpts...)
 
 	allTools := []agent.Tool{
 		tools.NewBash(),
 		tools.NewFileWrite(),
 		tools.NewFileRead(),
-		tools.NewImageGenerate(apiKey),
+		tools.NewImageGenerate(apiKey, baseURL),
 	}
 
 	cfg := &agent.Config{

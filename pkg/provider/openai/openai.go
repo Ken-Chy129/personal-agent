@@ -3,7 +3,6 @@ package openai
 import (
 	"context"
 	"fmt"
-	"os"
 
 	oai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -37,19 +36,10 @@ func WithModel(model string) Option {
 	}
 }
 
-// NewProvider creates a new OpenAI provider.
-// If apiKey is empty, it falls back to the OPENAI_API_KEY environment variable.
 func NewProvider(apiKey string, opts ...Option) *Provider {
-	if apiKey == "" {
-		apiKey = os.Getenv("OPENAI_API_KEY")
-	}
-
 	p := &Provider{model: defaultModel}
 	for _, opt := range opts {
 		opt(p)
-	}
-	if p.baseURL == "" {
-		p.baseURL = os.Getenv("OPENAI_BASE_URL")
 	}
 
 	clientOpts := []option.RequestOption{

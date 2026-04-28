@@ -28,11 +28,14 @@ type ImageGenerateTool struct {
 	client *oai.Client
 }
 
-func NewImageGenerate(apiKey string) *ImageGenerateTool {
-	if apiKey == "" {
-		apiKey = os.Getenv("OPENAI_API_KEY")
+func NewImageGenerate(apiKey string, baseURL string) *ImageGenerateTool {
+	clientOpts := []option.RequestOption{
+		option.WithAPIKey(apiKey),
 	}
-	c := oai.NewClient(option.WithAPIKey(apiKey))
+	if baseURL != "" {
+		clientOpts = append(clientOpts, option.WithBaseURL(baseURL))
+	}
+	c := oai.NewClient(clientOpts...)
 	return &ImageGenerateTool{client: &c}
 }
 
